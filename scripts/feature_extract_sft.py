@@ -50,7 +50,7 @@ def load_dataset(dataset_path: str, max_samples: Optional[int] = None) -> List[D
 def process_image_paths(images: List[str], base_path: str = None) -> List[str]:
     """Process image paths, add base prefix if needed."""
     if base_path is None:
-        base_path = "/mnt/project_ai4edu/share/code/RobobrainFactory/data/"
+        base_path = "<your dataset base path>" # e.g. "/mnt/project_ai4edu/share/code/RobobrainFactory/data/"
 
     return [
         img if img.startswith('/') else base_path + img

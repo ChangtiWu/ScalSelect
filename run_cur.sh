@@ -4,8 +4,7 @@
 # This script computes importance scores for all samples using CUR decomposition
 
 # Configuration
-FEATURES_DIR=./features/llava-15-7b/llava665k-v_features_noatten
-# OUTPUT=./output/geometry3k_importance_scores.json
+FEATURES_DIR=<your_features_directory> # e.g., ./features/llava-15-7b/llava665k-v_features
 SV_THRESHOLD=0.9  # Singular value cumulative energy threshold (90%)
 
 # Run CUR decomposition

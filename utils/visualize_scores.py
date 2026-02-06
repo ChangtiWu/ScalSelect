@@ -15,6 +15,19 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
+from matplotlib.ticker import FuncFormatter
+import matplotlib as mpl
+
+mpl.rcParams.update({
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Helvetica", "Arial", "DejaVu Sans"],
+    "mathtext.fontset": "stix",
+    "axes.unicode_minus": False,
+    "xtick.labelsize": 16,
+    "ytick.labelsize": 16,
+})
+
+
 
 def load_cur_scores(scores_path: str) -> Tuple[np.ndarray, str]:
     """
@@ -36,7 +49,16 @@ def load_cur_scores(scores_path: str) -> Tuple[np.ndarray, str]:
             scores_list.append(entry['importance'])
 
     scores = np.array(scores_list)
-    return scores, 'CUR Importance Score'
+    return scores, 'Importance Score'
+
+
+SCALE_E4 = 1e-4  # 用于显示成 “×10^{-4}”
+
+def fmt_k(x, _):
+    return f"{x/1000:g}K" if abs(x) >= 1000 else f"{x:g}"
+
+def fmt_e4(x, _):
+    return f"{x / SCALE_E4:g}"
 
 
 def visualize_distribution(
@@ -64,17 +86,24 @@ def visualize_distribution(
     # 1. Score distribution histogram
     ax = axes[0, 0]
     ax.hist(scores, bins=50, alpha=0.7, color='steelblue', edgecolor='black')
-    ax.set_xlabel(metric_name, fontsize=12)
-    ax.set_ylabel('Frequency', fontsize=12)
-    ax.set_title('Distribution Histogram', fontsize=13, fontweight='bold')
+    #ax.set_xlabel(metric_name, fontsize=16)
+    ax.set_ylabel('Frequency', fontsize=16)
+    
+    ax.xaxis.set_major_formatter(FuncFormatter(fmt_e4))
+    ax.yaxis.set_major_formatter(FuncFormatter(fmt_k))
+    ax.set_xlabel(rf'{metric_name} ($\times 10^{{-4}}$)', fontsize=16)
+
+    ax.set_title('Distribution Histogram', fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.3)
 
     # Add statistics
-    stats_text = (f'Mean: {scores.mean():.4f}\n'
-                 f'Std: {scores.std():.4f}\n'
-                 f'Median: {np.median(scores):.4f}\n'
-                 f'Min: {scores.min():.4f}\n'
-                 f'Max: {scores.max():.4f}')
+    stats_text = (rf'$\times 10^{{-4}}$' '\n'
+              f'Mean: {scores.mean()/SCALE_E4:.3f}\n'
+              f'Std: {scores.std()/SCALE_E4:.3f}\n'
+              f'Median: {np.median(scores)/SCALE_E4:.3f}\n'
+              f'Min: {scores.min()/SCALE_E4:.3f}\n'
+              f'Max: {scores.max()/SCALE_E4:.3f}')
+
     ax.text(0.98, 0.97, stats_text, transform=ax.transAxes,
             verticalalignment='top', horizontalalignment='right',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7),
@@ -84,9 +113,15 @@ def visualize_distribution(
     ax = axes[0, 1]
     sorted_scores = np.sort(scores)[::-1]
     ax.plot(range(len(sorted_scores)), sorted_scores, color='coral', linewidth=1.5)
-    ax.set_xlabel('Sample Rank', fontsize=12)
-    ax.set_ylabel(metric_name, fontsize=12)
-    ax.set_title('Ranking Curve (High to Low)', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Sample Rank', fontsize=16)
+    #ax.set_ylabel(metric_name, fontsize=16)
+
+    ax.yaxis.set_major_formatter(FuncFormatter(fmt_e4))
+    ax.xaxis.set_major_formatter(FuncFormatter(fmt_k))
+    ax.set_ylabel(rf'{metric_name} ($\times 10^{{-4}}$)', fontsize=16)
+
+
+    ax.set_title('Ranking Curve (High to Low)', fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.3)
 
     # Add percentile markers
@@ -104,9 +139,15 @@ def visualize_distribution(
     cumsum_normalized = cumsum / cumsum[-1]
     ax.plot(range(len(cumsum_normalized)), cumsum_normalized * 100,
             color='mediumseagreen', linewidth=2.5)
-    ax.set_xlabel('Number of Top Samples', fontsize=12)
-    ax.set_ylabel(f'Cumulative {metric_name} (%)', fontsize=12)
-    ax.set_title('Cumulative Distribution', fontsize=13, fontweight='bold')
+    #ax.set_xlabel('Number of Top Samples', fontsize=16)
+    ax.set_ylabel(f'Cumulative {metric_name} (%)', fontsize=16)
+
+    ax.xaxis.set_major_formatter(FuncFormatter(fmt_k))
+    ax.set_xlabel(rf'Number of Top Samples ($\times 10^{{-4}}$)', fontsize=12)
+
+
+    
+    ax.set_title('Cumulative Distribution', fontsize=14, fontweight='bold')
     ax.grid(True, alpha=0.3)
 
     # Add reference lines
@@ -137,7 +178,10 @@ def visualize_distribution(
                     medianprops=dict(color='red', linewidth=2),
                     meanprops=dict(marker='D', markerfacecolor='green', markersize=8))
 
-    ax.set_xlabel(metric_name, fontsize=12)
+    ax.set_xlabel(metric_name, fontsize=16)
+
+    ax.xaxis.set_major_formatter(FuncFormatter(fmt_k))
+
     ax.set_title('Statistical Summary (Box + Violin Plot)', fontsize=13, fontweight='bold')
     ax.grid(True, alpha=0.3, axis='x')
     ax.set_yticklabels([''])
@@ -157,7 +201,7 @@ def visualize_distribution(
     # Save figure
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path, bbox_inches='tight')
     print(f"\nVisualization saved to: {output_path}")
 
     plt.close()
@@ -194,19 +238,19 @@ def main():
     parser.add_argument(
         '--output',
         type=str,
-        default='figures/cur_distribution.png',
+        default='figures/cur_distribution.pdf',
         help='Output figure path (default: figures/cur_distribution.png)',
     )
 
     args = parser.parse_args()
 
     print("=" * 70)
-    print("CUR Importance Score Distribution Visualization")
+    print("Importance Score Distribution Visualization")
     print("=" * 70)
 
     # Load CUR importance scores
     scores, metric_name = load_cur_scores(args.input)
-    title_prefix = 'CUR Importance'
+    title_prefix = 'Importance Score'
 
     print(f"Loaded {len(scores)} samples from: {args.input}")
 

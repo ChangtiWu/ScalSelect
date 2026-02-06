@@ -11,15 +11,15 @@ export NCCL_IB_TIMEOUT=22             # InfiniBand timeout
 
 # 配置参数
 MODEL_TYPE=llava  # Model type: llava or qwen
-MODEL=/mnt/project_ai4edu/share/models/llava-1.5-7b-pretrain #Qwen3-VL-8B-Instruct 
-DATASET=/mnt/project_ai4edu/share/code/RobobrainFactory/data/LLaVA-665K/LF_LLaVA-665K-V.json
-OUTPUT_DIR=./features/llava-15-7b/llava665k-v_features_noatten
+MODEL=<your_model_path> # e.g., /mnt/project_ai4edu/share/models/llava-1.5-7b-pretrain
+DATASET=<your_dataset_path> # e.g., /mnt/project_ai4edu/share/code/RobobrainFactory/data/LLaVA-665K/LF_LLaVA-665K-V.json
+OUTPUT_DIR=<your_output_directory> # e.g., ./features/llava-15-7b/llava665k-v_features
 MAX_SAMPLES=-1  # -1 = all samples
 NUM_PROCESSES=8  # Number of GPUs
-SAMPLE_BATCH_SIZE=1  # Number of samples to process together (2-4 recommended)
+SAMPLE_BATCH_SIZE=1  # Number of samples to process together per device
 TORCH_DTYPE=bfloat16
-MAX_LENGTH=4096  # Increase to 8192 for long conversations if needed
-CUMULATIVE_THRESHOLD=1 # 0.9
+MAX_LENGTH=4096 
+CUMULATIVE_THRESHOLD=0.9 
 
 echo "======================================================================"
 echo "Multi-turn Conversation Feature Extraction"

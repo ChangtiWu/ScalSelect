@@ -58,10 +58,19 @@ class VLMFeatureExtractor:
         print(f"Max length: {max_length}")
 
         # Load processor and model
-        self.processor = AutoProcessor.from_pretrained(
-            model_name,
-            trust_remote_code=trust_remote_code,
-        )
+        processor_kwargs = {
+            'trust_remote_code': trust_remote_code,
+        }
+        self.processor = AutoProcessor.from_pretrained(model_name, **processor_kwargs)
+
+        # Qwen: 手动设置 image_processor.size 以控制视觉 token 数量
+        # (max_pixels 参数在 from_pretrained 中不生效)
+        if self.model_type == 'qwen':
+            self.processor.image_processor.size = {
+                "longest_edge": 576 * 32 * 32,
+                "shortest_edge": 256 * 32 * 32,
+            }
+
 
         # Set padding side to left for decoder-only models
         if hasattr(self.processor, 'tokenizer'):
@@ -92,6 +101,16 @@ class VLMFeatureExtractor:
             print("✓ Using official apply_chat_template")
         else:
             print("⚠ Fallback to manual formatting")
+
+        # Get Qwen vision token IDs
+        self.qwen_vision_token_ids = set()
+        if self.model_type == 'qwen':
+            tokenizer = self.processor.tokenizer
+            for token_name in ['<|image_pad|>', '<|vision_start|>', '<|vision_end|>']:
+                token_id = tokenizer.convert_tokens_to_ids(token_name)
+                if token_id != tokenizer.unk_token_id:
+                    self.qwen_vision_token_ids.add(token_id)
+            print(f"✓ Qwen vision token IDs: {self.qwen_vision_token_ids}")
 
         print("Model loaded successfully!")
 
@@ -136,6 +155,47 @@ class VLMFeatureExtractor:
                 hf_messages.append({"role": role, "content": hf_content})
 
         return hf_messages
+
+    def convert_sharegpt_to_qwen_format(
+        self,
+        messages: List[Dict],
+        num_images: int = 0,
+    ) -> List[Dict]:
+        """
+        Convert ShareGPT format to Qwen-VL format.
+
+        Uses placeholder {"type": "image"} only - real images are passed via processor(images=...).
+        This avoids "double image passing" mismatch between template and processor.
+
+        Args:
+            messages: ShareGPT format messages
+            num_images: Number of images (for placeholders only)
+
+        Returns:
+            Qwen-VL format messages
+        """
+        qwen_messages = []
+        images_added = False
+
+        for msg in messages:
+            role = msg.get('role')
+            content = msg.get('content', '')
+
+            if role == 'user' and num_images > 0 and not images_added:
+                qwen_content = []
+                # Add image placeholders (no real image objects)
+                qwen_content.extend({"type": "image"} for _ in range(num_images))
+                images_added = True
+                # Remove <image> tags from content
+                clean_content = content.replace('<image>', '').replace('<img>', '').strip()
+                if clean_content:
+                    qwen_content.append({"type": "text", "text": clean_content})
+                qwen_messages.append({"role": role, "content": qwen_content})
+            else:
+                # Assistant or subsequent user messages: content as string
+                qwen_messages.append({"role": role, "content": content})
+
+        return qwen_messages
 
     def create_assistant_labels(
         self,
@@ -254,12 +314,22 @@ class VLMFeatureExtractor:
         """
         input_ids_flat = input_ids[0] if input_ids.dim() > 1 else input_ids
 
+        vision_indices = []
+        text_indices = []
+
+        # Qwen: use specific vision token IDs
+        if self.model_type == 'qwen' and self.qwen_vision_token_ids:
+            for idx, token_id in enumerate(input_ids_flat):
+                if token_id.item() in self.qwen_vision_token_ids:
+                    vision_indices.append(idx)
+                else:
+                    text_indices.append(idx)
+            return vision_indices, text_indices
+
+        # LLaVA: use vocab_size threshold
         vocab_size = self.processor.tokenizer.vocab_size
         vision_token_id = getattr(self.processor.tokenizer, 'vision_token_id', None)
         image_token_id = getattr(self.processor.tokenizer, 'image_token_id', None)
-
-        vision_indices = []
-        text_indices = []
 
         for idx, token_id in enumerate(input_ids_flat):
             token_id_val = token_id.item()
@@ -278,6 +348,7 @@ class VLMFeatureExtractor:
                 text_indices.append(idx)
 
         return vision_indices, text_indices
+
 
     def extract_features_batch(
         self,
@@ -303,12 +374,15 @@ class VLMFeatureExtractor:
         text_inputs = []
         for idx, messages in enumerate(messages_list):
             if self.model_type == 'qwen':
-                # Use chat template for Qwen
+                # Convert ShareGPT format to Qwen format (placeholders only, real images via processor)
+                num_images = len(images_list[idx]) if idx < len(images_list) else 0
+                qwen_messages = self.convert_sharegpt_to_qwen_format(messages, num_images)
                 text_input = self.processor.apply_chat_template(
-                    messages,
+                    qwen_messages,
                     tokenize=False,
                     add_generation_prompt=False,
                 )
+
             else:
                 # LLaVA: use apply_chat_template if supported
                 if self.use_chat_template:
@@ -367,6 +441,7 @@ class VLMFeatureExtractor:
         inputs = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v
                   for k, v in inputs.items()}
 
+
         # Forward pass
         with torch.no_grad():
             outputs = self.model(
@@ -378,8 +453,9 @@ class VLMFeatureExtractor:
 
             # Extract outputs
             batch_input_ids = inputs['input_ids'].cpu().clone()
-            batch_first_hidden = outputs.hidden_states[1] if len(outputs.hidden_states) > 1 else None
-            batch_attention = outputs.attentions[0] if outputs.attentions else None
+            # print(f"number of transformer layers: {len(outputs.hidden_states)}") # llava-1.5-7b=33
+            batch_first_hidden = outputs.hidden_states[1] if len(outputs.hidden_states) > 1 else None # 1
+            batch_attention = outputs.attentions[0] if outputs.attentions else None # 0
 
         # Cleanup inputs
         for key in list(inputs.keys()):
