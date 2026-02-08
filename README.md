@@ -75,7 +75,7 @@ def process_image_paths(images: List[str], base_path: str = None) -> List[str]:
         for img in images
     ]
 ```
-Note. The base path must be combined with the image paths in your input samples to form the absolute paths of the images.
+Note. The base path must satisfy the following requirement: it must be able to be concatenated with the image paths in your input samples to form absolute paths for the images.
 
 
 Then, extract vision representations from your dataset using a VLM. Supports **multi-GPU** via HuggingFace Accelerate.
