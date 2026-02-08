@@ -1,10 +1,10 @@
 # ScalSelect
 
-A scalable data selection pipeline for Vision-Language Model (VLM) supervised fine-tuning.
+ScalSelect: Scalable Training-Free Multimodal Data Selection for Efficient Visual Instruction Tuning
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.11.11
 - PyTorch
 - Transformers (HuggingFace)
 - Accelerate (HuggingFace)
@@ -39,14 +39,15 @@ Input datasets should be in **ShareGPT format** (JSON):
 [
   {
     "id": 0,
-    "images": ["path/to/image.jpg"],
     "messages": [
       {"role": "user", "content": "<image>\nDescribe this image."},
       {"role": "assistant", "content": "The image shows ..."},
       {"role": "user", "content": "What color is the sky?"},
       {"role": "assistant", "content": "The sky is blue."}
-    ]
-  }
+    ],
+    "images": ["path/to/image.jpg"],
+  },
+  ...
 ]
 ```
 
@@ -55,14 +56,14 @@ Input datasets should be in **ShareGPT format** (JSON):
 | Model Family | `--model-type` | Example |
 |---|---|---|
 | LLaVA | `llava` | `llava-hf/llava-1.5-7b-hf` |
-| Qwen-VL | `qwen` | `Qwen/Qwen2-VL-7B-Instruct` |
+| Qwen-VL | `qwen` | `Qwen/Qwen3-VL-8B-Instruct` |
 
 
 ## Quick Start
 
 ### Step 1: Extract Features
 
-Before running `run_extraction.sh`, please configure the base url of input images in the `script/feature_extract.py`:
+Before running `run_extraction.sh`, please configure the base url `base_path` of input images in the `script/feature_extract.py`:
 ```python
 def process_image_paths(images: List[str], base_path: str = None) -> List[str]:
     """Process image paths, add base prefix if needed."""
@@ -74,8 +75,10 @@ def process_image_paths(images: List[str], base_path: str = None) -> List[str]:
         for img in images
     ]
 ```
+Note. The base path must be combined with the image paths in your input samples to form the absolute paths of the images.
 
-Extract vision representations from your dataset using a VLM. Supports **multi-GPU** via HuggingFace Accelerate.
+
+Then, extract vision representations from your dataset using a VLM. Supports **multi-GPU** via HuggingFace Accelerate.
 
 ```bash
 # Edit run_extraction.sh to set your paths, then:
@@ -95,9 +98,9 @@ Key parameters in `run_extraction.sh`:
 
 Output: `OUTPUT_DIR/all_representations.npz`
 
-### Step 2: CUR Decomposition
+### Step 2: Compute Importance Score
 
-Compute importance scores for all samples using CUR matrix decomposition.
+Compute importance scores for all samples based on the CUR matrix decomposition.
 
 ```bash
 # Edit run_cur.sh to set your features directory, then:
