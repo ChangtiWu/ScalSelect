@@ -2,6 +2,10 @@
 
 ScalSelect: Scalable Training-Free Multimodal Data Selection for Efficient Visual Instruction Tuning
 
+<p align="center">
+    <a href="https://arxiv.org/abs/2602.11636", target="_blank"><img src="https://img.shields.io/badge/arXiv-2509.24473-b31b1b.svg"></a>
+</p>
+
 ## Requirements
 
 - Python 3.11.11
