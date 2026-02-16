@@ -28,8 +28,8 @@ ScalSelect/
 │   ├── visualize_scores.py        # Importance score distribution plots
 │   ├── check_dataset_validity.py  # Check dataset for missing images/IDs
 │   └── filter_valid_samples.py    # Filter out invalid samples
-├── run_extraction.sh              # Step 1: feature extraction
-├── run_cur.sh                     # Step 2: CUR decomposition
+├── run_extraction.sh              # Step 1: representation extraction
+├── run_cur.sh                     # Step 2: importance score computation
 ├── run_select.sh                  # Step 3: sample selection
 ├── run_visualize.sh               # Optional: visualization
 └── accelerate_config.yaml         # Multi-GPU accelerate config
@@ -59,9 +59,10 @@ Input datasets should be in **ShareGPT format** (JSON):
 
 | Model Family | `--model-type` | Example |
 |---|---|---|
-| LLaVA | `llava` | `llava-hf/llava-1.5-7b-hf` |
+| LLaVA | `llava` | `LLaVA-Vicuna-7B` |
 | Qwen-VL | `qwen` | `Qwen/Qwen3-VL-8B-Instruct` |
 
+*Note.* The model must be in HuggingFace Safetensor format. LLaVA-Vicuna-7B (hf safetensor format, pretrained checkpoint before SFT using LLaVA-665K in LLaVA-1.5-7B (https://arxiv.org/pdf/2310.03744)) can be assembled using https://github.com/ChangtiWu/Assemble_LLaVA_HF. 
 
 ## Quick Start
 
@@ -79,7 +80,7 @@ def process_image_paths(images: List[str], base_path: str = None) -> List[str]:
         for img in images
     ]
 ```
-Note. The base path must satisfy the following requirement: it must be able to be concatenated with the image paths in your input samples to form absolute paths for the images.
+*Note.* The base path must satisfy the following requirement: it must be able to be concatenated with the image paths in your input samples to form absolute paths for the images.
 
 
 Then, extract vision representations from your dataset using a VLM. Supports **multi-GPU** via HuggingFace Accelerate.
@@ -101,6 +102,17 @@ Key parameters in `run_extraction.sh`:
 | `SAMPLE_BATCH_SIZE` | Samples per batch per GPU | `1` |
 
 Output: `OUTPUT_DIR/all_representations.npz`
+
+> Optional: When `MODEL_TYP=qwen`, you can adjust the max/min size of the input image in the `script/feature_extract.py`, to control the number of visual tokens:
+> ```python
+> if self.model_type == 'qwen':
+>     self.processor.image_processor.size = {
+>         "longest_edge": 576 * 32 * 32,
+>         "shortest_edge": 256 * 32 * 32,
+> }
+> ```
+
+
 
 ### Step 2: Compute Importance Score
 
